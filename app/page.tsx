@@ -1,65 +1,173 @@
-import Image from "next/image";
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import ExpenseForm from "@/app/components/ExpenseForm";
+
+type Expense = {
+  id: string;
+  amount: number;
+  category: string;
+  description: string;
+  date: string;
+  createdAt: string;
+  idempotencyKey: string;
+};
+
+const CATEGORIES = ["all", "Food", "Transport", "Utilities", "Entertainment", "Other"];
+
+function formatINRFromCents(cents: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(cents / 100);
+}
 
 export default function Home() {
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<string>("date_desc");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+
+  const fetchExpenses = useCallback(async () => {
+    const params = new URLSearchParams();
+
+    if (categoryFilter !== "all") {
+      params.set("category", categoryFilter);
+    }
+    if (sortOrder === "date_desc") {
+      params.set("sort", "date_desc");
+    }
+
+    const query = params.toString();
+    const response = await fetch(`/api/expenses${query ? `?${query}` : ""}`, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to load expenses");
+    }
+
+    return (await response.json()) as Expense[];
+  }, [categoryFilter, sortOrder]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExpenses = async () => {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const data = await fetchExpenses();
+
+        if (!cancelled) {
+          setExpenses(data);
+        }
+      } catch (fetchError) {
+        if (!cancelled) {
+          const message = fetchError instanceof Error ? fetchError.message : "Failed to load expenses";
+          setError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadExpenses();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchExpenses]);
+
+  const total = useMemo(() => {
+    return expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  }, [expenses]);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
+      <section className="mx-auto w-full max-w-4xl space-y-6">
+        <header className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 className="text-2xl font-bold tracking-tight">Expense Tracker</h1>
+          <p className="mt-1 text-sm text-slate-600">Track your spending with resilient request handling.</p>
+        </header>
+
+        <ExpenseForm onSuccess={fetchExpenses} />
+
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Filter by category</span>
+                <select
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                >
+                  {CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {category === "all" ? "All" : category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Sort</span>
+                <select
+                  value={sortOrder}
+                  onChange={(event) => setSortOrder(event.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                >
+                  <option value="date_desc">Date (newest first)</option>
+                </select>
+              </label>
+            </div>
+
+            <p className="text-lg font-semibold">Total: {formatINRFromCents(total)}</p>
+          </div>
+
+          {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+
+          {isLoading ? <p className="mt-4 text-sm text-slate-500">Loading expenses...</p> : null}
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Category</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Description</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {!isLoading && expenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-center text-sm text-slate-500">
+                      No expenses found.
+                    </td>
+                  </tr>
+                ) : null}
+
+                {expenses.map((expense) => (
+                  <tr key={expense.id}>
+                    <td className="px-3 py-2 text-sm text-slate-700">{new Date(expense.date).toLocaleDateString("en-IN")}</td>
+                    <td className="px-3 py-2 text-sm text-slate-700">{expense.category}</td>
+                    <td className="px-3 py-2 text-sm text-slate-700">{expense.description}</td>
+                    <td className="px-3 py-2 text-right text-sm font-medium text-slate-800">
+                      {formatINRFromCents(expense.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
   );
 }
