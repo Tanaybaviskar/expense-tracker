@@ -13,10 +13,11 @@ export default function ExpenseForm({ onSuccess }: ExpenseFormProps) {
   const [amount, setAmount] = useState<string>("");
   const [category, setCategory] = useState<string>("Food");
   const [description, setDescription] = useState<string>("");
-  const [date, setDate] = useState<string>("");
+  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => uuidv4());
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [success, setSuccess] = useState<string>("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,6 +33,11 @@ export default function ExpenseForm({ onSuccess }: ExpenseFormProps) {
       return;
     }
 
+    if (description.trim().length < 3) {
+      setError("Description should be at least 3 characters.");
+      return;
+    }
+
     if (!date) {
       setError("Please select a date.");
       return;
@@ -39,6 +45,7 @@ export default function ExpenseForm({ onSuccess }: ExpenseFormProps) {
 
     setIsSubmitting(true);
     setError("");
+    setSuccess("");
 
     try {
       const payload = {
@@ -67,10 +74,11 @@ export default function ExpenseForm({ onSuccess }: ExpenseFormProps) {
       setAmount("");
       setCategory("Food");
       setDescription("");
-      setDate("");
+      setDate(new Date().toISOString().slice(0, 10));
       setIdempotencyKey(uuidv4());
 
       await onSuccess();
+      setSuccess("Expense added successfully.");
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "Failed to create expense";
       setError(message);
@@ -89,7 +97,7 @@ export default function ExpenseForm({ onSuccess }: ExpenseFormProps) {
           <input
             type="number"
             inputMode="decimal"
-            min="0"
+            min="0.01"
             step="0.01"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
@@ -121,6 +129,7 @@ export default function ExpenseForm({ onSuccess }: ExpenseFormProps) {
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="What was this expense for?"
+            minLength={3}
             required
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
@@ -132,6 +141,7 @@ export default function ExpenseForm({ onSuccess }: ExpenseFormProps) {
             type="date"
             value={date}
             onChange={(event) => setDate(event.target.value)}
+            max={new Date().toISOString().slice(0, 10)}
             required
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
@@ -149,6 +159,7 @@ export default function ExpenseForm({ onSuccess }: ExpenseFormProps) {
       </form>
 
       {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      {success ? <p className="mt-3 text-sm text-emerald-700">{success}</p> : null}
     </section>
   );
 }

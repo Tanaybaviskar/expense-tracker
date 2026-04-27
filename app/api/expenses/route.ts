@@ -10,14 +10,26 @@ type CreateExpenseBody = {
   idempotencyKey?: string;
 };
 
-function parseAndValidateBody(body: CreateExpenseBody) {
+type ValidatedExpenseBody = {
+  amount: number;
+  category: string;
+  description: string;
+  date: Date;
+  idempotencyKey: string;
+};
+
+type ValidationError = {
+  error: string;
+};
+
+function parseAndValidateBody(body: CreateExpenseBody): ValidatedExpenseBody | ValidationError {
   const amount = body.amount;
   const category = body.category?.trim();
   const description = body.description?.trim();
   const idempotencyKey = body.idempotencyKey?.trim();
   const parsedDate = body.date ? new Date(body.date) : null;
 
-  if (!Number.isInteger(amount) || (amount ?? 0) <= 0) {
+  if (typeof amount !== "number" || !Number.isInteger(amount) || amount <= 0) {
     return { error: "amount must be a positive integer in cents/paise" };
   }
 
