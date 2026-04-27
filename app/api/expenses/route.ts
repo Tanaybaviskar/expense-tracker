@@ -22,6 +22,8 @@ type ValidationError = {
   error: string;
 };
 
+const CATEGORIES = ["Food", "Transport", "Utilities", "Entertainment", "Other"] as const;
+
 function parseAndValidateBody(body: CreateExpenseBody): ValidatedExpenseBody | ValidationError {
   const amount = body.amount;
   const category = body.category?.trim();
@@ -35,6 +37,10 @@ function parseAndValidateBody(body: CreateExpenseBody): ValidatedExpenseBody | V
 
   if (!category) {
     return { error: "category is required" };
+  }
+
+  if (!CATEGORIES.includes(category as (typeof CATEGORIES)[number])) {
+    return { error: "category is invalid" };
   }
 
   if (!description) {
@@ -118,8 +124,13 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category")?.trim();
     const sort = searchParams.get("sort");
 
+    const where =
+      category && CATEGORIES.includes(category as (typeof CATEGORIES)[number])
+        ? { category }
+        : undefined;
+
     const expenses = await prisma.expense.findMany({
-      where: category ? { category } : undefined,
+      where,
       orderBy: sort === "date_desc" ? { date: "desc" } : { createdAt: "desc" },
     });
 
